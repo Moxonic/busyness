@@ -1,0 +1,12 @@
+# Netlify detects Next.js automatically. Migrations run only for production deploys.
+# Turn OFF deploy previews and branch deploys in the Netlify UI: they would run against
+# the production database (see README "Deploying").
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+[context.production]
+  command = "npm run db:migrate && npm run build"

@@ -1,0 +1,51 @@
+# Local development only. Production runs on Netlify + Neon (see README).
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: busyness_owner
+      POSTGRES_PASSWORD: owner_dev_password
+      POSTGRES_DB: busyness
+      APP_DB_ROLE: busyness_app
+      APP_DB_PASSWORD: app_dev_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U busyness_owner -d busyness"]
+      interval: 2s
+      retries: 30
+
+  # Catches all outgoing email locally. Web UI: http://localhost:8025
+  mail:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Same tools as the GitHub Actions backup job (pg_dump, restic, rclone),
+  # used to test backup and restore locally: see README "Backup and restore".
+  backup-tools:
+    profiles: ["tools"]
+    build:
+      context: ./docker
+      dockerfile: backup-tools.Dockerfile
+    environment:
+      BACKUP_DATABASE_URL: postgres://busyness_owner:owner_dev_password@db:5432/busyness
+      RESTORE_ADMIN_URL: postgres://busyness_owner:owner_dev_password@db:5432/postgres
+      RESTIC_REPOSITORY: /backup-repo
+      RESTIC_PASSWORD: local-test-only-restic-password
+      FILES_SOURCE_DIR: /app-files
+    volumes:
+      - ./scripts/backup:/scripts:ro
+      - backuprepo:/backup-repo
+      - ./.data/files:/app-files:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  backuprepo:

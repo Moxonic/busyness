@@ -1,0 +1,44 @@
+name: Weekly restore test
+
+# Restores the latest backup into a throwaway database and checks it (audit log hash chain,
+# every document's SHA-256). A backup you have never restored is only a hope.
+on:
+  schedule:
+    - cron: "43 3 * * 0" # Sundays
+  workflow_dispatch:
+
+concurrency: backup
+
+permissions:
+  contents: read
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:${{ vars.PG_MAJOR || '17' }}
+        env:
+          POSTGRES_PASSWORD: restore
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pg tools and restic
+        env:
+          PG_MAJOR: ${{ vars.PG_MAJOR || '17' }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common restic
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq "postgresql-client-$PG_MAJOR"
+          sudo restic self-update
+      - name: Restore and verify
+        run: bash scripts/backup/restore-test.sh
+        env:
+          RESTORE_ADMIN_URL: postgres://postgres:restore@localhost:5432/postgres
+          RESTIC_REPOSITORY: ${{ secrets.RESTIC_REPOSITORY }}
+          RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
