@@ -1,5 +1,14 @@
+import { networkInterfaces } from "node:os";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+
+/** This PC's own LAN addresses, so a phone on the same Wi-Fi can use the dev server. Dev only. */
+function lanAddresses(): string[] {
+  return Object.values(networkInterfaces())
+    .flat()
+    .filter((i) => i && i.family === "IPv4" && !i.internal)
+    .map((i) => i!.address);
+}
 
 // Content-Security-Policy is set per request (with a nonce) in src/proxy.ts.
 const securityHeaders = [
@@ -13,6 +22,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  allowedDevOrigins: process.env.NODE_ENV === "production" ? [] : lanAddresses(),
   // Every page in this app is private and per-user, so the Cache Components model
   // (static shells + caching) brings risk without benefit. Pages render per request.
   cacheComponents: false,
